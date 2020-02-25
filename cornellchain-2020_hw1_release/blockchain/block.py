@@ -9,8 +9,14 @@ import math
 
 
 class Block(ABC, persistent.Persistent):
-
-    def __init__(self, height, transactions, parent_hash, is_genesis=False, include_merkle_root=True):
+    def __init__(
+        self,
+        height,
+        transactions,
+        parent_hash,
+        is_genesis=False,
+        include_merkle_root=True,
+    ):
         """ Creates a block template (unsealed).
 
         Args:
@@ -40,8 +46,7 @@ class Block(ABC, persistent.Persistent):
         if include_merkle_root:
             self.merkle = self.calculate_merkle_root()
         else:
-            self.merkle = sha256_2_string(
-                "".join([str(x) for x in self.transactions]))
+            self.merkle = sha256_2_string("".join([str(x) for x in self.transactions]))
 
         self.seal_data = 0  # temporarily set seal_data to 0
         self.hash = self.calculate_hash()  # keep track of hash for caching purposes
@@ -67,21 +72,23 @@ class Block(ABC, persistent.Persistent):
         for each_trans in self.transactions:
             trans_hash_list.append(sha256_2_string(str(each_trans)))
 
-        if(len(trans_hash_list) == 0):
+        if len(trans_hash_list) == 0:
             return sha256_2_string("")
 
-        if(len(trans_hash_list) == 1):
+        if len(trans_hash_list) == 1:
             return trans_hash_list[0]
 
         while not (len(trans_hash_list) == 1):
             trans_hash_list_temp = []
             n = math.floor(len(trans_hash_list) / 2)
             for i in range(n):
-                trans_hash_list_temp.append(sha256_2_string(
-                    trans_hash_list[2*i] + trans_hash_list[2*i+1]))
+                trans_hash_list_temp.append(
+                    sha256_2_string(trans_hash_list[2 * i] + trans_hash_list[2 * i + 1])
+                )
             if (len(trans_hash_list) % 2) == 1:
                 trans_hash_list_temp.append(
-                    trans_hash_list[-1])
+                    sha256_2_string(trans_hash_list[-1] + trans_hash_list[-1])
+                )
             trans_hash_list = trans_hash_list_temp.copy()
 
         return trans_hash_list[0]
@@ -92,7 +99,17 @@ class Block(ABC, persistent.Persistent):
         Returns:
             str: String representation of the block header without the seal.
         """
-        return encode_as_str([self.height, self.timestamp, self.target, self.parent_hash, self.is_genesis, self.merkle], sep='`')
+        return encode_as_str(
+            [
+                self.height,
+                self.timestamp,
+                self.target,
+                self.parent_hash,
+                self.is_genesis,
+                self.merkle,
+            ],
+            sep="`",
+        )
 
     def header(self):
         """ Computes the full header string of a block after mining (includes the seal).
@@ -100,7 +117,7 @@ class Block(ABC, persistent.Persistent):
         Returns:
             str: String representation of the block header.
         """
-        return encode_as_str([self.unsealed_header(), self.seal_data], sep='`')
+        return encode_as_str([self.unsealed_header(), self.seal_data], sep="`")
 
     def calculate_hash(self):
         """ Get the SHA256^2 hash of the block header.
@@ -116,7 +133,9 @@ class Block(ABC, persistent.Persistent):
         Returns:
             str: Full and unique representation of a block and its transactions.
         """
-        return encode_as_str([self.header(), "!".join([str(tx) for tx in self.transactions])], sep="`")
+        return encode_as_str(
+            [self.header(), "!".join([str(tx) for tx in self.transactions])], sep="`"
+        )
 
     def set_seal_data(self, seal_data):
         """ Adds seal data to a block, recomputing the block's hash for its changed header representation.
@@ -160,8 +179,8 @@ class Block(ABC, persistent.Persistent):
             return False, "Too many transactions"
 
         # (checks that apply to genesis block)
-            # Check that height is 0 and parent_hash is "genesis" [test_invalid_genesis]
-            # On failure: return False, "Invalid genesis"
+        # Check that height is 0 and parent_hash is "genesis" [test_invalid_genesis]
+        # On failure: return False, "Invalid genesis"
         if self.is_genesis:
             if self.height != 0 or self.parent_hash != "genesis":
                 return False, "Invalid genesis"
@@ -170,7 +189,7 @@ class Block(ABC, persistent.Persistent):
         else:
             # Check that parent exists (you may find chain.blocks helpful) [test_nonexistent_parent]
             # On failure: return False, "Nonexistent parent"
-            if (self.parent_hash not in chain.blocks):
+            if self.parent_hash not in chain.blocks:
                 return False, "Nonexistent parent"
 
             # Check that height is correct w.r.t. parent height [test_bad_height]
@@ -201,10 +220,13 @@ class Block(ABC, persistent.Persistent):
             # (you may find chain.get_chain_ending_with and chain.blocks_containing_tx and util.nonempty_intersection useful)
             # On failure: return False, "Double transaction inclusion"
             trans_hash_list = []
-            ref_list = {}
-            for ind1, each_trans in enumerate(self.transactions):
+            ref_list = []
+            for each_trans in self.transactions:
                 if each_trans.hash in chain.blocks_containing_tx:
-                    if nonempty_intersection(chain.blocks_containing_tx[each_trans.hash], chain.get_chain_ending_with(self.parent_hash)):
+                    if nonempty_intersection(
+                        chain.blocks_containing_tx[each_trans.hash],
+                        chain.get_chain_ending_with(self.parent_hash),
+                    ):
                         return False, "Double transaction inclusion"
 
                 if each_trans.hash in trans_hash_list:
@@ -217,7 +239,7 @@ class Block(ABC, persistent.Persistent):
             for each in self.transactions:
                 all_hash.append(each.hash)
 
-            for ind1, each_trans in enumerate(self.transactions):
+            for each_trans in self.transactions:
 
                 flag = 0
                 same_user = None
@@ -229,12 +251,12 @@ class Block(ABC, persistent.Persistent):
                     # On failure: return False, "Required output not found"
                     ref_hash, ref_ind = each_ref.split(":")
                     temp_hash = None
-                    for ind2, ele in enumerate(self.transactions):
-                        if ind1 == ind2:
-                            continue
+
+                    for ele in self.transactions:
                         if ele.hash == ref_hash:
                             temp_hash = ele
-                    if temp_hash == None:
+
+                    if ref_hash not in all_hash:
                         if ref_hash not in chain.all_transactions:
                             return False, "Required output not found"
                         temp_hash = chain.all_transactions[ref_hash]
@@ -244,45 +266,51 @@ class Block(ABC, persistent.Persistent):
                     except:
                         return False, "Required output not found"
 
-            # every input was sent to the same user (would normally carry a signature from this user; we leave this out for simplicity) [test_user_consistency]
-            # On failure: return False, "User inconsistencies"
+                    # every input was sent to the same user (would normally carry a signature from this user; we leave this out for simplicity) [test_user_consistency]
+                    # On failure: return False, "User inconsistencies"
 
                     if same_user == None:
                         same_user = temp_hash.outputs[int(ref_ind)].receiver
                     elif same_user != temp_hash.outputs[int(ref_ind)].receiver:
                         return False, "User inconsistencies"
 
-            # no input_ref has been spent in a previous block on this chain [test_doublespent_input_same_chain]
-            # (or in this block; you will have to check this manually) [test_doublespent_input_same_block]
-            # (you may find nonempty_intersection and chain.blocks_spending_input helpful here)
-            # On failure: return False, "Double-spent input"
+                    # no input_ref has been spent in a previous block on this chain [test_doublespent_input_same_chain]
+                    # (or in this block; you will have to check this manually) [test_doublespent_input_same_block]
+                    # (you may find nonempty_intersection and chain.blocks_spending_input helpful here)
+                    # On failure: return False, "Double-spent input"
                     if ref_hash not in ref_list:
-                        ref_list[ref_hash] = temp_hash
+                        ref_list.append(ref_hash)
                     else:
                         return False, "Double-spent input"
 
                     if each_ref in chain.blocks_spending_input:
-                        if nonempty_intersection(chain.blocks_spending_input[each_ref], chain.get_chain_ending_with(self.parent_hash)):
+                        if nonempty_intersection(
+                            chain.blocks_spending_input[each_ref],
+                            chain.get_chain_ending_with(self.parent_hash),
+                        ):
                             return False, "Double-spent input"
 
-            # each input_ref points to a transaction on the same blockchain as this block [test_input_txs_on_chain]
-            # (or in this block; you will have to check this manually) [test_input_txs_in_block]
-            # (you may find chain.blocks_containing_tx.get and nonempty_intersection as above helpful)
-            # On failure: return False, "Input transaction not found"
+                    # each input_ref points to a transaction on the same blockchain as this block [test_input_txs_on_chain]
+                    # (or in this block; you will have to check this manually) [test_input_txs_in_block]
+                    # (you may find chain.blocks_containing_tx.get and nonempty_intersection as above helpful)
+                    # On failure: return False, "Input transaction not found"
                     if ref_hash in chain.blocks_containing_tx:
-                        if ref_hash not in all_hash and not nonempty_intersection(chain.blocks_containing_tx[ref_hash], chain.get_chain_ending_with(self.parent_hash)):
+                        if ref_hash not in all_hash and not nonempty_intersection(
+                            chain.blocks_containing_tx[ref_hash],
+                            chain.get_chain_ending_with(self.parent_hash),
+                        ):
                             return False, "Input transaction not found"
 
-            # every output was sent from the same user (would normally carry a signature from this user; we leave this out for simplicity)
-            # (this MUST be the same user as the outputs are locked to above) [test_user_consistency]
-            # On failure: return False, "User inconsistencies"
+                    # every output was sent from the same user (would normally carry a signature from this user; we leave this out for simplicity)
+                    # (this MUST be the same user as the outputs are locked to above) [test_user_consistency]
+                    # On failure: return False, "User inconsistencies"
                     for each_output in each_trans.outputs:
                         if same_user != each_output.sender:
                             return False, "User inconsistencies"
                         outMoney = outMoney + each_output.amount
 
-            # the sum of the input values is at least the sum of the output values (no money created out of thin air) [test_no_money_creation]
-            # On failure: return False, "Creating money"
+                    # the sum of the input values is at least the sum of the output values (no money created out of thin air) [test_no_money_creation]
+                    # On failure: return False, "Creating money"
                     inMoney = inMoney + temp_hash.outputs[int(ref_ind)].amount
                     if outMoney > inMoney:
                         return False, "Creating money"
